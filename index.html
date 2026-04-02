@@ -75,7 +75,7 @@
           response = await fetch('./public/china_gis.json');
           if (!response.ok) throw new Error('fallback');
         } catch (e) {
-          response = await fetch('/china_gis.json'); // Vite 默认公共目录路由
+          response = await fetch('./china_gis.json'); // Vite 默认公共目录路由 (改用相对路径兼容 GitHub Pages 二级目录)
         }
         const rawData = await response.json();
         
