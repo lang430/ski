@@ -69,13 +69,14 @@
 
     async function initApp() {
       try {
-        // Fix for Vercel Mixed Content (HTTPS fetching HTTP):
-        // Automatically switch to Vercel Proxy '/api/china_gis.json' when deployed, 
-        // while allowing direct HTTP fetching when running locally or on file://
-        const isLocal = window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const dataUrl = isLocal ? 'http://106.12.10.129:10010/uploads/china_gis.json' : '/api/china_gis.json';
-        
-        const response = await fetch(dataUrl);
+        // 智能兼容读取 public 目录数据：无论是单独开启 http-server 还是 Vite 启动，都可以自动找到数据
+        let response;
+        try {
+          response = await fetch('./public/china_gis.json');
+          if (!response.ok) throw new Error('fallback');
+        } catch (e) {
+          response = await fetch('/china_gis.json'); // Vite 默认公共目录路由
+        }
         geoJsonData = await response.json();
         
         // Hide loading
