@@ -49,6 +49,8 @@ jobs:
           enablement: true
           
       - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
           # Upload entire build output directory from Vite
           path: './dist'
           
