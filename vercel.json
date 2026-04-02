@@ -3,10 +3,6 @@
     {
       "source": "/api/china_gis.json",
       "destination": "http://106.12.10.129:10010/uploads/china_gis.json"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }

@@ -9,7 +9,7 @@ export default defineConfig({
       '/api': {
         target: 'http://106.12.10.129:10010',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\\/api/, '')
+        rewrite: (path) => path.replace('/api', '')
       }
     }
   }
