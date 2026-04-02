@@ -77,7 +77,21 @@
         } catch (e) {
           response = await fetch('/china_gis.json'); // Vite 默认公共目录路由
         }
-        geoJsonData = await response.json();
+        const rawData = await response.json();
+        
+        // 核心修复：解析提供的非标准 GIS 数据结构，转换为标准的 GeoJSON FeatureCollection
+        if (Array.isArray(rawData)) {
+          geoJsonData = {
+            type: "FeatureCollection",
+            features: rawData.map(item => ({
+              type: "Feature",
+              properties: { name: item.fence_name },
+              geometry: typeof item.st_asgeojson === 'string' ? JSON.parse(item.st_asgeojson) : item.st_asgeojson
+            }))
+          };
+        } else {
+          geoJsonData = rawData; // 如果已经是标准 GeoJSON 则直接使用
+        }
         
         // Hide loading
         document.getElementById('loading').style.display = 'none';
