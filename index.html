@@ -1,13 +1,275 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Beautiful China Map</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pro Max China Map</title>
+  
+  <!-- Tailwind CSS for UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Apache ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  
+  <!-- Turf.js for Area Calculation -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  
+  <!-- JSZip and FileSaver for screenshots -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+  <style>
+    body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f8fafc; }
+    #map-container { width: 100%; height: 100%; }
+    .glass {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex flex-col p-4 md:p-6 text-slate-800">
+
+  <header class="glass flex flex-col md:flex-row items-center justify-between px-6 py-4 rounded-2xl mb-4 z-10">
+    <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+      中国行政区划地图 (Pro Max)
+    </h1>
+    
+    <div class="flex items-center gap-4 mt-4 md:mt-0">
+      <select id="province-select" class="appearance-none bg-white border border-slate-200 text-slate-700 py-2.5 pl-4 pr-10 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 transition-shadow cursor-pointer font-medium shadow-sm">
+        <option value="">-- 全国地图 (All) --</option>
+      </select>
+
+      <button id="screenshot-btn" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium py-2.5 px-6 rounded-xl shadow-md transition-transform transform hover:scale-105 flex items-center gap-2">
+        <span>📸 生成并下载35张截图</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full rounded-2xl overflow-hidden glass relative">
+    <div id="loading" class="absolute inset-0 flex items-center justify-center bg-white/80 z-20 backdrop-blur-sm">
+      <span class="text-xl font-semibold text-blue-500 animate-pulse">正在加载地图数据...</span>
+    </div>
+    <div id="map-container"></div>
+  </main>
+
+  <script>
+    const COLORS = [
+      '#FFB3BA', '#FFDFBA', '#FFFFBA', '#B5EAD7', '#C7CEEA', 
+      '#FF9CEE', '#FFDAC1', '#F3B0C3', '#A2E1DB', '#55CBCD', 
+      '#A2D5F2', '#FFC4A3', '#FCDAB7', '#C8E7FF', '#A2BCE0', 
+      '#E3A8F4', '#F1E0D6', '#BFD8D2', '#DFD3C3', '#FFC8A2'
+    ];
+
+    let chart = null;
+    let geoJsonData = null;
+    let provinceDataList = [];
+    const ECHARTS_MAP_NAME = 'china';
+
+    async function initApp() {
+      try {
+        // Fetch GIS data provided by user
+        const response = await fetch('http://106.12.10.129:10010/uploads/china_gis.json');
+        geoJsonData = await response.json();
+        
+        // Hide loading
+        document.getElementById('loading').style.display = 'none';
+
+        // Calculate areas using Turf and prepare data for Echarts
+        provinceDataList = geoJsonData.features.map((feature, index) => {
+          const name = feature.properties.name || '未知';
+          
+          // Turf area calculation
+          const areaSqMeters = turf.area(feature);
+          const areaSqKm = Math.round(areaSqMeters / 1000000);
+          
+          // Random aesthetic color mapping
+          const itemColor = COLORS[index % COLORS.length];
+
+          // Compute bounding box for easy zooming/centering
+          const bbox = turf.bbox(feature);
+          const centerPos = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
+
+          return {
+            name: name,
+            value: areaSqKm, // Echarts uses value for VisualMap or Custom tooltips
+            itemStyle: {
+              areaColor: itemColor, // Assign direct color
+            },
+            centerPos: centerPos
+          };
+        });
+
+        // Populate dropdown
+        const selectEl = document.getElementById('province-select');
+        provinceDataList.sort((a,b)=> a.name.localeCompare(b.name)).forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.name;
+          opt.textContent = p.name;
+          selectEl.appendChild(opt);
+        });
+
+        // Initialize ECharts
+        echarts.registerMap(ECHARTS_MAP_NAME, geoJsonData);
+        chart = echarts.init(document.getElementById('map-container'), null, { renderer: 'canvas' });
+        
+        renderMap('');
+
+        // Event Listeners
+        selectEl.addEventListener('change', (e) => {
+          renderMap(e.target.value);
+        });
+        
+        // Setup clicking on map
+        chart.on('click', function(params) {
+          if(params.name) {
+            selectEl.value = params.name;
+            renderMap(params.name);
+          }
+        });
+
+        document.getElementById('screenshot-btn').addEventListener('click', captureAllScreenshots);
+
+        // Window resize
+        window.addEventListener('resize', () => chart.resize());
+
+      } catch (err) {
+        console.error("Initialization Failed:", err);
+        document.getElementById('loading').innerHTML = `<span class="text-red-500">无法加载数据，检查网络或跨域设置: ${err.message}</span>`;
+      }
+    }
+
+    function renderMap(selectedProvinceName) {
+      // Find selected province to adjust scale/center
+      let center = null;
+      let zoom = 1.2; // default whole country
+      
+      if (selectedProvinceName) {
+        const found = provinceDataList.find(p => p.name === selectedProvinceName);
+        if (found) {
+          center = found.centerPos;
+          zoom = 4; // Zoom scale for a specific province
+        }
+      }
+
+      // Map highlighting
+      const dataWithHighlight = provinceDataList.map(p => {
+        const isSelected = p.name === selectedProvinceName;
+        return {
+          ...p,
+          itemStyle: {
+            areaColor: p.itemStyle.areaColor,
+            borderWidth: isSelected ? 3 : 1,
+            borderColor: isSelected ? '#1e293b' : '#ffffff',
+            shadowColor: isSelected ? 'rgba(0,0,0,0.5)' : 'transparent',
+            shadowBlur: isSelected ? 20 : 0
+          },
+          label: {
+            show: isSelected || !selectedProvinceName,
+            color: '#333',
+            fontFamily: 'Inter',
+            fontWeight: isSelected ? 'bold' : 'normal',
+            fontSize: isSelected ? 16 : 12,
+            formatter: (params) => {
+              return `${params.name}\n${params.value.toLocaleString()} km²`;
+            }
+          }
+        };
+      });
+
+      const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: 'rgba(255,255,255,0.9)',
+          borderColor: '#e2e8f0',
+          textStyle: { color: '#1e293b' },
+          formatter: function (params) {
+            if (!params.name) return '';
+            return `<div style="font-weight:bold;font-size:16px">${params.name}</div>
+                    <div style="color:#64748b;margin-top:4px">面积: ${params.value ? params.value.toLocaleString() : 0} km²</div>`;
+          }
+        },
+        series: [{
+          type: 'map',
+          map: ECHARTS_MAP_NAME,
+          roam: true,
+          center: center, // Focus on center position
+          zoom: zoom,
+          scaleLimit: { min: 1, max: 20 },
+          itemStyle: {
+            borderColor: '#fff',
+            borderWidth: 1
+          },
+          emphasis: {
+            label: { show: true },
+            itemStyle: { areaColor: '#fde047' } 
+          },
+          data: dataWithHighlight,
+          animationDurationUpdate: 800, // Smooth transition
+        }]
+      };
+
+      chart.setOption(option);
+    }
+
+    // Capture screenshots feature
+    async function captureAllScreenshots() {
+      const btn = document.getElementById('screenshot-btn');
+      const selectEl = document.getElementById('province-select');
+      
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin">⏳</span> 正在生成... (0 / 35)`;
+      
+      const zip = new JSZip();
+      
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+      // Array of tasks: 1 full map empty string + 34 provinces
+      const tasks = ['']; 
+      provinceDataList.forEach(p => tasks.push(p.name));
+
+      for (let i = 0; i < tasks.length; i++) {
+        const provinceName = tasks[i];
+        
+        // 1. Update UI dropdown
+        selectEl.value = provinceName;
+        
+        // 2. Render map focus
+        renderMap(provinceName);
+        
+        // 3. Wait for Echarts animation + rendering frame
+        btn.innerHTML = `<span class="animate-spin">⏳</span> 正在生成... (${i+1} / 35) : ${provinceName || '全国'}`;
+        await sleep(1500); 
+
+        // 4. Capture screenshot via Echarts 
+        const base64Data = chart.getDataURL({
+          type: 'png',
+          pixelRatio: 2, // High resolution (Pro Max)
+          backgroundColor: '#f8fafc' // Solid background for images
+        });
+        
+        const filename = i === 0 ? `00_全国地图.png` : `${i.toString().padStart(2, '0')}_${provinceName}.png`;
+        zip.file(filename, base64Data.split(',')[1], {base64: true});
+      }
+
+      btn.innerHTML = `📦 正在打包下载...`;
+      
+      // Generate ZIP and download
+      const content = await zip.generateAsync({type:"blob"});
+      saveAs(content, "中国地图_35张截图.zip");
+      
+      // Reset view to whole country
+      selectEl.value = '';
+      renderMap('');
+      
+      btn.disabled = false;
+      btn.innerHTML = `<span>📸 生成并下载35张截图</span>`;
+    }
+
+    // Init
+    initApp();
+  </script>
+</body>
 </html>

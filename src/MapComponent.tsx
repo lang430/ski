@@ -6,10 +6,10 @@ import L from 'leaflet';
 import { ChevronDown, Map as MapIcon } from 'lucide-react';
 
 const COLORS = [
-  '#FFB3BA', '#FFDFBA', '#FFFFBA', '#B5EAD7', '#C7CEEA', 
-  '#e2f0cb', '#ff9cece', '#ffdac1', '#f3b0c3', '#a2e1db', 
-  '#55cbcd', '#a2d5f2', '#ffc4a3', '#fcdab7', '#c8e7ff',
-  '#a2bce0', '#e3a8f4', '#f1e0d6', '#bfd8d2', '#dfd3c3'
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+  '#F8B500', '#FF6F61', '#6B5B95', '#88B04B', '#F7CAC9',
+  '#92A8D1', '#955251', '#B565A7', '#009B77', '#DD4124'
 ];
 
 interface FeatureProps {
@@ -120,10 +120,10 @@ export default function MapComponent() {
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [chinaBounds, setChinaBounds] = useState<L.LatLngBounds | null>(null);
 
-  useEffect(() => {
-    fetch('/api/china_gis.json')
-      .then(res => res.json())
-      .then(data => {
+  useEffect(() =&gt; {
+    fetch('http://106.12.10.129:10010/uploads/china_gis.json')
+      .then(res =&gt; res.json())
+      .then(data =&gt; {
         setGeoData(data);
         
         // Calculate bounds for entire country
@@ -134,7 +134,7 @@ export default function MapComponent() {
         
         setLoading(false);
       })
-      .catch(err => {
+      .catch(err =&gt; {
         console.error("Failed to fetch GIS data: ", err);
         setLoading(false);
       });
@@ -183,29 +183,43 @@ export default function MapComponent() {
   }
 
   return (
-    <div className="w-screen h-screen bg-slate-50 flex flex-col p-4 font-sans">
-      <header className="mb-4 flex flex-col md:flex-row items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-4 md:mb-0">
-          <MapIcon className="text-blue-500" /> 中国行政区划地图
-        </h1>
+    <div className="w-screen h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col p-6 font-sans overflow-hidden">
+      <header className="mb-6 flex flex-col lg:flex-row items-center justify-between bg-white/80 backdrop-blur-xl px-8 py-5 rounded-3xl shadow-2xl border border-white/50">
+        <div className="flex items-center gap-3 mb-4 lg:mb-0">
+          <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
+            <MapIcon className="text-white" size={28} />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 via-blue-600 to-purple-600 bg-clip-text text-transparent">
+              中国行政区划地图
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">34个省级行政区可视化 · 点击省份查看详情</p>
+          </div>
+        </div>
         
-        <div className="relative">
-          <select 
-            className="appearance-none bg-slate-100 border border-slate-200 text-slate-700 py-2 pl-4 pr-10 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent font-medium transition-all"
-            value={selectedProvince}
-            onChange={handleProvinceChange}
-            id="province-select"
-          >
-            <option value="">-- 全国 (All Provinces) --</option>
-            {provinces.map((name: string) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+        <div className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+          <div className="relative">
+            <select 
+              className="appearance-none bg-gradient-to-r from-slate-50 to-white border-2 border-slate-200 text-slate-700 py-3 pl-5 pr-12 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 font-semibold transition-all cursor-pointer min-w-[200px] hover:shadow-lg"
+              value={selectedProvince}
+              onChange={handleProvinceChange}
+              id="province-select"
+            >
+              <option value="">🌍 全国 (All Provinces)</option>
+              {provinces.map((name: string) => (
+                <option key={name} value={name}>📍 {name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none transition-transform group-hover:translate-y-0" size={20} />
+          </div>
         </div>
       </header>
       
-      <div className="flex-1 w-full rounded-2xl overflow-hidden shadow-xl border border-slate-200 bg-blue-50 relative">
+      <div className="flex-1 w-full rounded-3xl overflow-hidden shadow-2xl border border-white/50 bg-white/60 backdrop-blur-sm relative">
+        <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg border border-gray-100 text-sm text-gray-600 font-medium">
+          💡 鼠标滚轮缩放 · 点击省份聚焦
+        </div>
         <MapContainer 
           className="w-full h-full z-0 font-sans"
           zoomControl={false}
@@ -224,6 +238,12 @@ export default function MapComponent() {
           />
         </MapContainer>
       </div>
+      
+      <footer className="mt-4 text-center text-sm text-gray-500">
+        <span className="bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-white/50">
+          共 {provinces.length} 个省级行政区
+        </span>
+      </footer>
     </div>
   );
 }
